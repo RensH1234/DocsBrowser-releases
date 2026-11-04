@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DocsBrowser</title>
+<meta name="description" content="Een gedeelde documentenboom per project, met het Google Doc ernaast in een ingebouwde browser. Opgeslagen in git.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23a2643c'/%3E%3Cpath d='M9 9h6M12 9v14M12 16h6M12 23h6' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' fill='none'/%3E%3Ccircle cx='22' cy='16' r='2.2' fill='%23fff'/%3E%3Ccircle cx='22' cy='23' r='2.2' fill='%23fff'/%3E%3C/svg%3E">
+<script>
+  // Eerder gekozen thema vóór het tekenen toepassen; anders volgt de pagina het systeem.
+  try { const t = localStorage.getItem('theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
+<style>
+  /* Kleurtokens uit de app (src/styles.css), aangevuld met een donkere kopband. */
+  :root {
+    --surface-0: #ffffff;
+    --surface-1: #f6f5f2;
+    --surface-2: #fbfaf8;
+    --border: #e4e2dc;
+    --border-strong: #cfccc4;
+    --text-primary: #1c1b19;
+    --text-secondary: #55534e;
+    --text-muted: #8a8781;
+    --text-accent: #7a4e2e;
+    --bg-accent: #f2e9e2;
+    --fill-accent: #a2643c;
+    --fill-accent-hover: #8c5532;
+    --on-accent: #ffffff;
+    --hero-bg: #1a1714;
+    --hero-text: #f3eee6;
+    --hero-muted: #b3a998;
+    --hero-accent: #e2a97a;
+    --code-bg: #1f1c19;
+    --code-text: #e9e3d8;
+    --radius: 8px;
+    --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  /* Donker volgt het systeem, tenzij de bezoeker zelf koos (data-theme). */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --surface-0: #1c1b19;
+      --surface-1: #131211;
+      --surface-2: #242321;
+      --border: #34322d;
+      --border-strong: #47443c;
+      --text-primary: #f1efe9;
+      --text-secondary: #b8b3a8;
+      --text-muted: #8a8478;
+      --text-accent: #e2a97a;
+      --bg-accent: #3a2c1f;
+      --fill-accent: #c17d45;
+      --fill-accent-hover: #d08b52;
+      --on-accent: #1c1b19;
+      --hero-bg: #0d0c0b;
+      --code-bg: #0d0c0b;
+    }
+  }
+  :root[data-theme="dark"] {
+    --surface-0: #1c1b19;
+    --surface-1: #131211;
+    --surface-2: #242321;
+    --border: #34322d;
+    --border-strong: #47443c;
+    --text-primary: #f1efe9;
+    --text-secondary: #b8b3a8;
+    --text-muted: #8a8478;
+    --text-accent: #e2a97a;
+    --bg-accent: #3a2c1f;
+    --fill-accent: #c17d45;
+    --fill-accent-hover: #d08b52;
+    --on-accent: #1c1b19;
+    --hero-bg: #0d0c0b;
+    --code-bg: #0d0c0b;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--surface-1);
+    color: var(--text-primary);
+    font: 16px/1.6 var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--text-accent); }
+  .wrap { width: 100%; max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+  svg.i { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* Navigatie */
+  .nav { background: var(--hero-bg); color: var(--hero-text); }
+  .nav .wrap { display: flex; align-items: center; gap: 24px; height: 64px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 17px; color: inherit; text-decoration: none; letter-spacing: -0.01em; }
+  .brand-mark { width: 28px; height: 28px; }
+  .nav-links { margin-left: auto; display: flex; gap: 22px; font-size: 14px; }
+  .nav-links a { color: var(--hero-muted); text-decoration: none; }
+  .nav-links a:hover { color: var(--hero-text); }
+  @media (max-width: 640px) { .nav-links a:not(.gh) { display: none; } }
+  .theme-toggle {
+    display: grid; place-items: center; width: 34px; height: 34px; margin-left: -6px;
+    border: 1px solid rgba(243, 238, 230, 0.16); border-radius: 8px;
+    background: transparent; color: var(--hero-muted); cursor: pointer;
+  }
+  .theme-toggle:hover { color: var(--hero-text); border-color: rgba(243, 238, 230, 0.32); }
+  .theme-toggle .sun { display: none; }
+  .is-dark .theme-toggle .sun { display: block; }
+  .is-dark .theme-toggle .moon { display: none; }
+
+  /* Kopband */
+  .hero {
+    background:
+      radial-gradient(900px 420px at 85% -10%, rgba(193, 125, 69, 0.28), transparent 70%),
+      radial-gradient(600px 300px at 0% 100%, rgba(193, 125, 69, 0.12), transparent 70%),
+      var(--hero-bg);
+    color: var(--hero-text);
+    padding: 56px 0 160px;
+  }
+  .hero-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 32px; max-width: 760px; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 13px; color: var(--hero-accent);
+    border: 1px solid rgba(226, 169, 122, 0.3); background: rgba(226, 169, 122, 0.08);
+    border-radius: 999px; padding: 4px 12px; width: fit-content;
+  }
+  .hero h1 { margin: 0; font-size: clamp(34px, 5.5vw, 56px); line-height: 1.08; font-weight: 700; letter-spacing: -0.025em; }
+  .hero h1 em { font-style: normal; color: var(--hero-accent); }
+  .hero .lead { margin: 0; font-size: clamp(17px, 2vw, 19px); color: var(--hero-muted); max-width: 620px; }
+  .cta { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
+  .button {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 13px 22px; border-radius: var(--radius);
+    background: #c17d45; color: #1a1714;
+    font-weight: 650; font-size: 16px; text-decoration: none;
+    box-shadow: 0 6px 24px rgba(193, 125, 69, 0.35);
+    transition: background 0.15s, transform 0.15s;
+  }
+  .button:hover { background: #d08b52; transform: translateY(-1px); }
+  .button[aria-disabled="true"] { opacity: 0.6; pointer-events: none; }
+  .button-ghost { color: var(--hero-text); text-decoration: none; font-size: 15px; display: inline-flex; align-items: center; gap: 6px; }
+  .button-ghost:hover { color: var(--hero-accent); }
+  .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: 13px; color: var(--hero-muted); }
+  .version { font-family: var(--font-mono); font-size: 12px; padding: 2px 8px; border-radius: 6px; background: rgba(226, 169, 122, 0.14); color: var(--hero-accent); }
+  .version[hidden] { display: none; }
+  #status:empty { display: none; }
+
+  /* Demo-venster dat over de kopband heen valt */
+  .demo-wrap { margin-top: -120px; }
+  .window {
+    border-radius: 14px; overflow: hidden;
+    background: #0c0c0d;
+    border: 1px solid var(--border-strong);
+    box-shadow: 0 30px 80px rgba(20, 14, 8, 0.28), 0 4px 16px rgba(20, 14, 8, 0.12);
+  }
+  .window-bar { display: flex; align-items: center; gap: 7px; padding: 10px 14px; background: #201e1b; }
+  .window-bar span { width: 11px; height: 11px; border-radius: 50%; background: #45413a; }
+  .window-bar small { margin-left: 10px; color: #8a8478; font-size: 12px; }
+  .demo { display: block; width: 100%; aspect-ratio: 16 / 9; background: #0c0c0d; }
+
+  /* Secties */
+  section { padding: 88px 0 0; }
+  .section-head { max-width: 640px; margin-bottom: 36px; }
+  .kicker { font-size: 13px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-accent); margin: 0 0 8px; }
+  h2 { margin: 0 0 12px; font-size: clamp(26px, 3.4vw, 34px); line-height: 1.2; letter-spacing: -0.02em; font-weight: 700; }
+  .section-head p { margin: 0; color: var(--text-secondary); font-size: 17px; }
+
+  .problem { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .problem div { padding: 20px 22px; border-left: 3px solid var(--fill-accent); background: var(--surface-0); border-radius: 0 var(--radius) var(--radius) 0; }
+  .problem strong { display: block; margin-bottom: 4px; }
+  .problem p { margin: 0; color: var(--text-secondary); font-size: 15px; }
+
+  .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--surface-0); border: 1px solid var(--border); border-radius: 12px;
+    padding: 24px; transition: border-color 0.15s, transform 0.15s;
+  }
+  .card:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+  .card .icon { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; background: var(--bg-accent); color: var(--text-accent); margin-bottom: 16px; }
+  .card h3 { margin: 0 0 6px; font-size: 17px; font-weight: 650; }
+  .card p { margin: 0; color: var(--text-secondary); font-size: 15px; }
+
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; counter-reset: step; }
+  .step { position: relative; padding: 24px; background: var(--surface-0); border: 1px solid var(--border); border-radius: 12px; }
+  .step::before {
+    counter-increment: step; content: counter(step);
+    display: grid; place-items: center; width: 32px; height: 32px; margin-bottom: 14px;
+    border-radius: 50%; background: var(--fill-accent); color: var(--on-accent); font-weight: 700; font-size: 15px;
+  }
+  .step h3 { margin: 0 0 6px; font-size: 17px; }
+  .step p { margin: 0; color: var(--text-secondary); font-size: 15px; }
+
+  .storage { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 32px; align-items: center; }
+  .storage ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+  .storage li { display: flex; gap: 12px; color: var(--text-secondary); font-size: 15px; }
+  .storage li svg { color: var(--text-accent); margin-top: 2px; }
+  .storage li strong { color: var(--text-primary); }
+  .code {
+    margin: 0; background: var(--code-bg); color: var(--code-text);
+    border-radius: 12px; padding: 20px 22px; overflow-x: auto;
+    font: 13.5px/1.7 var(--font-mono); border: 1px solid var(--border);
+  }
+  .code .c { color: #8a8478; }
+  .code .k { color: #e2a97a; }
+  .code .s { color: #a9c98f; }
+
+  .notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  .note { display: flex; gap: 12px; padding: 18px 20px; background: var(--surface-0); border: 1px solid var(--border); border-radius: 12px; font-size: 15px; color: var(--text-secondary); }
+  .note svg { color: var(--text-accent); margin-top: 2px; }
+  .note strong { display: block; color: var(--text-primary); margin-bottom: 2px; }
+
+  .final {
+    margin-top: 88px; padding: 48px 32px; border-radius: 16px; text-align: center;
+    background: radial-gradient(600px 240px at 50% 0%, rgba(193, 125, 69, 0.3), transparent 70%), var(--hero-bg);
+    color: var(--hero-text);
+  }
+  .final h2 { margin-bottom: 8px; }
+  .final p { margin: 0 0 24px; color: var(--hero-muted); }
+
+  footer { padding: 40px 0 48px; color: var(--text-muted); font-size: 14px; }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; }
+  footer a { color: var(--text-secondary); text-decoration: none; }
+  footer a:hover { color: var(--text-accent); }
+
+  @media (max-width: 640px) {
+    .hero { padding: 40px 0 110px; }
+    .demo-wrap { margin-top: -80px; }
+    section { padding-top: 64px; }
+    .final { margin-top: 64px; padding: 36px 20px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .card, .button { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-tree" viewBox="0 0 24 24"><path d="M4 5h6M7 5v14M7 12h5M7 19h5"/><rect x="14" y="9.5" width="6" height="5" rx="1"/><rect x="14" y="16.5" width="6" height="5" rx="1"/></symbol>
+  <symbol id="i-browser" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M7 6.5h.01M10 6.5h.01"/></symbol>
+  <symbol id="i-tag" viewBox="0 0 24 24"><path d="M3 12V4h8l9 9-8 8z"/><circle cx="7.5" cy="8.5" r="1.3"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/></symbol>
+  <symbol id="i-git" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8M8 6.5c5 0 8 1.5 9.5 3.8"/></symbol>
+  <symbol id="i-drag" viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></symbol>
+  <symbol id="i-windows" viewBox="0 0 24 24"><path d="M3 5.5l7.5-1v7H3zM12.5 4.2L21 3v8.5h-8.5zM3 13.5h7.5v7L3 19.5zM12.5 13.5H21V21l-8.5-1.2z"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.5 8-8 9-4.5-1-8-4.5-8-9V6z"/><path d="M12 8v4M12 15.5h.01"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.5-4.5L4 8M4 4v4h4M4 13a8 8 0 0 0 14.5 4.5L20 16M20 20v-4h-4"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></symbol>
+  <symbol id="i-github" viewBox="0 0 24 24"><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.2 4.2 0 0 0-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3 0 0 0-6.2 0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2 0 0 0-.1 3.2A4.6 4.6 0 0 0 4 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></symbol>
+</svg>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="#">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#c17d45"/><path d="M9 9h6M12 9v14M12 16h6M12 23h6" stroke="#1a1714" stroke-width="2.4" stroke-linecap="round" fill="none"/><circle cx="22" cy="16" r="2.2" fill="#1a1714"/><circle cx="22" cy="23" r="2.2" fill="#1a1714"/></svg>
+      DocsBrowser
+    </a>
+    <nav class="nav-links" aria-label="Hoofdnavigatie">
+      <a href="#functies">Functies</a>
+      <a href="#starten">Aan de slag</a>
+      <a href="#opslag">Opslag</a>
+      <a class="gh" href="https://github.com/RensH1234/DocsBrowser-releases">GitHub</a>
+    </nav>
+    <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Donkere modus aan" title="Licht/donker">
+      <svg class="i moon"><use href="#i-moon"/></svg><svg class="i sun"><use href="#i-sun"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="wrap hero-grid">
+    <span class="eyebrow">Desktop-app voor Windows</span>
+    <h1>Elk projectdocument op één plek, <em>naast</em> het document zelf.</h1>
+    <p class="lead">DocsBrowser zet een door het team samengestelde documentenboom links en het Google Doc, Sheet of de Drive-map rechts. Je gebruikt gewoon je eigen Google-sessie, en de boom deelt het team via git.</p>
+    <div class="cta">
+      <a class="button" id="download" href="https://github.com/RensH1234/DocsBrowser-releases/releases/latest" aria-disabled="true">
+        <svg class="i"><use href="#i-download"/></svg><span id="download-label">Nieuwste versie zoeken…</span>
+      </a>
+      <a class="button-ghost" href="https://github.com/RensH1234/DocsBrowser-releases/releases">Alle versies <svg class="i"><use href="#i-arrow"/></svg></a>
+    </div>
+    <div class="meta">
+      <span class="version" id="version" hidden></span>
+      <span>Windows 10/11 · vereist git</span>
+      <span id="status" role="status"></span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap demo-wrap">
+  <div class="window">
+    <div class="window-bar" aria-hidden="true"><span></span><span></span><span></span><small>DocsBrowser</small></div>
+    <!-- 1280×720-opname uit demo/; de pagina is bruikbaar ook als hij niet laadt. -->
+    <video class="demo" src="demo.webm" autoplay muted loop playsinline controls aria-label="Demo van DocsBrowser"></video>
+  </div>
+</div>
+
+<main>
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="kicker">Het probleem</p>
+        <h2>Documentatie staat overal, behalve waar je zoekt.</h2>
+        <p>Drive-mappen groeien per persoon en per afdeling. Wie aan een project begint, weet niet welke documenten erbij horen.</p>
+      </div>
+      <div class="problem">
+        <div><strong>Verspreid over Drive</strong><p>Offertes, ontwerpen en planningen staan in mappen die alleen hun maker kan terugvinden.</p></div>
+        <div><strong>Silo's per afdeling</strong><p>Support, sales, development en projectplanning werken aan hetzelfde project, maar los van elkaar.</p></div>
+        <div><strong>Eén document, meerdere plekken</strong><p>Een opleverdocument hoort bij een fase én bij een taak. In Drive betekent dat kopiëren of zoeken.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="functies">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="kicker">Functies</p>
+        <h2>Een eigen ordening, geen spiegel van Drive.</h2>
+        <p>De boom maak je zelf, per project en standaard per fase. Dezelfde link mag op meerdere plekken hangen.</p>
+      </div>
+      <div class="features">
+        <article class="card">
+          <div class="icon"><svg class="i"><use href="#i-tree"/></svg></div>
+          <h3>Documentenboom per project</h3>
+          <p>Mappen en links toevoegen, hernoemen, verslepen. Nieuwe projecten starten met de fasen Voortraject, Implementatie, Oplevering, en Beheer en support.</p>
+        </article>
+        <article class="card">
+          <div class="icon"><svg class="i"><use href="#i-browser"/></svg></div>
+          <h3>Ingebouwde browser</h3>
+          <p>Docs, Sheets, PDF's en Drive-mappen openen rechts in de app, met je eigen ingelogde Google-sessie. Er zijn geen Google API's bij betrokken.</p>
+        </article>
+        <article class="card">
+          <div class="icon"><svg class="i"><use href="#i-drag"/></svg></div>
+          <h3>Slepen om toe te voegen</h3>
+          <p>Sleep de url uit de browsertoolbar naar een map in de boom. Het toevoegscherm opent dan met de link al ingevuld.</p>
+        </article>
+        <article class="card">
+          <div class="icon"><svg class="i"><use href="#i-tag"/></svg></div>
+          <h3>Labels en weergaven</h3>
+          <p>Label nodes met Sales, Support, Development of Projectplanning, of met je eigen naam. Een weergave filtert de gedeelde boom, en "Alles tonen" is altijd één klik weg.</p>
+        </article>
+        <article class="card">
+          <div class="icon"><svg class="i"><use href="#i-bell"/></svg></div>
+          <h3>Activiteitenfeed</h3>
+          <p>Zie wat er sinds je laatste bezoek is toegevoegd, gewijzigd, verplaatst of verwijderd, door wie en waar. Ongelezen items krijgen een stip.</p>
+        </article>
+        <article class="card">
+          <div class="icon"><svg class="i"><use href="#i-git"/></svg></div>
+          <h3>Gedeeld via git</h3>
+          <p>Elke wijziging wordt meteen gecommit en gepusht. Werk van collega's komt elke minuut vanzelf binnen, en botsingen lost de app zelf op.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="starten">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="kicker">Aan de slag</p>
+        <h2>In drie stappen aan het werk.</h2>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <h3>Installeren</h3>
+          <p>Download de installer hierboven en draai hem. Hij installeert per gebruiker, zonder adminrechten. Zorg dat <a href="https://git-scm.com/download/win">git</a> op je machine staat.</p>
+        </div>
+        <div class="step">
+          <h3>Verbinden met de teamrepo</h3>
+          <p>Plak bij de eerste start de url van de teamrepo en klik op Verbinden. Inloggen loopt via de credential-helper van git, niet via de app.</p>
+        </div>
+        <div class="step">
+          <h3>Je naam instellen</h3>
+          <p>Klik rechtsonder in de statusbalk op je naam. Die komt op je commits en hoort bij het label "Van mij".</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="opslag">
+    <div class="wrap storage">
+      <div>
+        <p class="kicker">Opslag</p>
+        <h2>Geen server, geen database. Gewoon een git-repo.</h2>
+        <ul>
+          <li><svg class="i"><use href="#i-check"/></svg><span><strong>Een map is een map, een link is een .md-bestand.</strong> De naam, url, labels en volgorde staan in de frontmatter.</span></li>
+          <li><svg class="i"><use href="#i-check"/></svg><span><strong>Wie en wanneer komen uit git log.</strong> De historie die je al hebt, is de activiteitenfeed.</span></li>
+          <li><svg class="i"><use href="#i-check"/></svg><span><strong>Alleen links, geen inhoud.</strong> De documenten zelf blijven in Google Drive, met de rechten die ze daar hebben.</span></li>
+        </ul>
+      </div>
+      <pre class="code" aria-label="Voorbeeld van een link-node"><span class="c"># PROJECT/Voortraject/offerte-klant.md</span>
+<span class="k">---</span>
+<span class="k">name:</span> <span class="s">Offerte klant</span>
+<span class="k">url:</span> <span class="s">https://docs.google.com/document/d/…</span>
+<span class="k">labels:</span> [<span class="s">Sales</span>, <span class="s">Projectplanning</span>]
+<span class="k">order:</span> <span class="s">10</span>
+<span class="k">---</span></pre>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <p class="kicker">Goed om te weten</p>
+        <h2>Voor je installeert</h2>
+      </div>
+      <div class="notes">
+        <div class="note"><svg class="i"><use href="#i-windows"/></svg><span><strong>Alleen Windows</strong>De app gebruikt de systeem-git, dus <a href="https://git-scm.com/download/win">git</a> moet geïnstalleerd zijn.</span></div>
+        <div class="note"><svg class="i"><use href="#i-shield"/></svg><span><strong>Niet ondertekend</strong>Waarschuwt SmartScreen, kies dan "Meer informatie" en daarna "Toch uitvoeren".</span></div>
+        <div class="note"><svg class="i"><use href="#i-refresh"/></svg><span><strong>Geen auto-update</strong>Voor een nieuwe versie draai je de nieuwe installer van deze pagina over de oude heen.</span></div>
+      </div>
+
+      <div class="final">
+        <h2>Klaar om te beginnen?</h2>
+        <p>Download de installer, verbind met de teamrepo en open je eerste project.</p>
+        <a class="button" id="download-bottom" href="https://github.com/RensH1234/DocsBrowser-releases/releases/latest">
+          <svg class="i"><use href="#i-download"/></svg>Download DocsBrowser
+        </a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>DocsBrowser, een interne tool</span>
+    <span>
+      <a href="https://github.com/RensH1234/DocsBrowser-releases/releases">Releases</a>
+    </span>
+  </div>
+</footer>
+
+<script>
+  // Licht/donker: standaard het systeem volgen; een klik legt een eigen keuze vast.
+  (function () {
+    const root = document.documentElement;
+    const toggle = document.getElementById('theme-toggle');
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const isDark = () => root.dataset.theme ? root.dataset.theme === 'dark' : media.matches;
+    function render() {
+      const dark = isDark();
+      root.classList.toggle('is-dark', dark);
+      root.style.colorScheme = dark ? 'dark' : 'light';
+      toggle.setAttribute('aria-label', dark ? 'Lichte modus aan' : 'Donkere modus aan');
+    }
+    toggle.addEventListener('click', () => {
+      const next = isDark() ? 'light' : 'dark';
+      root.dataset.theme = next;
+      try { localStorage.setItem('theme', next); } catch (e) {}
+      render();
+    });
+    media.addEventListener('change', render);
+    render();
+  })();
+</script>
+<script>
+  // Zoekt bij elk bezoek de nieuwste release op en laat de knop naar de
+  // installer wijzen. De download start pas na een klik. Lukt dat niet (geen release, rate limit), dan blijft de knop naar de
+  // releasepagina op GitHub wijzen.
+  // De broncode is privé; installers en deze pagina staan in een aparte, publieke repo.
+  const REPO = 'RensH1234/DocsBrowser-releases';
+  const button = document.getElementById('download');
+  const label = document.getElementById('download-label');
+  const bottom = document.getElementById('download-bottom');
+  const status = document.getElementById('status');
+  const version = document.getElementById('version');
+
+  function fallback(message) {
+    label.textContent = 'Naar de releases op GitHub';
+    button.removeAttribute('aria-disabled');
+    status.textContent = message;
+  }
+
+  fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers: { Accept: 'application/vnd.github+json' } })
+    .then((response) => {
+      if (response.status === 404) throw new Error('Er is nog geen release.');
+      if (!response.ok) throw new Error('GitHub is even niet bereikbaar.');
+      return response.json();
+    })
+    .then((release) => {
+      const asset = release.assets.find((a) => a.name.toLowerCase().endsWith('.exe'));
+      if (!asset) throw new Error('Deze release heeft (nog) geen installer.');
+      button.href = asset.browser_download_url;
+      bottom.href = asset.browser_download_url;
+      label.textContent = `Download ${release.tag_name}`;
+      button.removeAttribute('aria-disabled');
+      version.textContent = asset.name;
+      version.hidden = false;
+    })
+    .catch((error) => fallback(error.message));
+</script>
+</body>
+</html>
