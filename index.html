@@ -11,7 +11,7 @@
   try { const t = localStorage.getItem('theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
 </script>
 <style>
-  /* Kleurtokens uit de app (src/styles.css), aangevuld met een donkere kopband. */
+  /* Kleurtokens uit de app (src/styles.css), aangevuld voor kopband, code en demovenster. */
   :root {
     --surface-0: #ffffff;
     --surface-1: #f6f5f2;
@@ -26,12 +26,23 @@
     --fill-accent: #a2643c;
     --fill-accent-hover: #8c5532;
     --on-accent: #ffffff;
-    --hero-bg: #1a1714;
-    --hero-text: #f3eee6;
-    --hero-muted: #b3a998;
-    --hero-accent: #e2a97a;
-    --code-bg: #1f1c19;
-    --code-text: #e9e3d8;
+    --hero-bg: #f1e8de;
+    --hero-text: #1c1b19;
+    --hero-muted: #55534e;
+    --hero-accent: #9a5a32;
+    --hero-line: rgba(28, 27, 25, 0.14);
+    --hero-line-strong: rgba(28, 27, 25, 0.3);
+    --hero-chip: rgba(162, 100, 60, 0.1);
+    --hero-glow: rgba(193, 125, 69, 0.22);
+    --code-bg: #ffffff;
+    --code-text: #1c1b19;
+    --code-comment: #8a8781;
+    --code-key: #7a4e2e;
+    --code-string: #4a7c45;
+    --window-bar: #ebe8e2;
+    --window-dot: #cfccc4;
+    --window-title: #8a8781;
+    --shadow: rgba(60, 40, 20, 0.18);
     --radius: 8px;
     --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -51,9 +62,24 @@
       --bg-accent: #3a2c1f;
       --fill-accent: #c17d45;
       --fill-accent-hover: #d08b52;
-      --on-accent: #1c1b19;
-      --hero-bg: #0d0c0b;
+      --on-accent: #1a1714;
+      --hero-bg: #12100e;
+      --hero-text: #f3eee6;
+      --hero-muted: #b3a998;
+      --hero-accent: #e2a97a;
+      --hero-line: rgba(243, 238, 230, 0.16);
+      --hero-line-strong: rgba(243, 238, 230, 0.32);
+      --hero-chip: rgba(226, 169, 122, 0.1);
+      --hero-glow: rgba(193, 125, 69, 0.28);
       --code-bg: #0d0c0b;
+      --code-text: #e9e3d8;
+      --code-comment: #8a8478;
+      --code-key: #e2a97a;
+      --code-string: #a9c98f;
+      --window-bar: #201e1b;
+      --window-dot: #45413a;
+      --window-title: #8a8478;
+      --shadow: rgba(0, 0, 0, 0.45);
     }
   }
   :root[data-theme="dark"] {
@@ -69,9 +95,24 @@
     --bg-accent: #3a2c1f;
     --fill-accent: #c17d45;
     --fill-accent-hover: #d08b52;
-    --on-accent: #1c1b19;
-    --hero-bg: #0d0c0b;
+    --on-accent: #1a1714;
+    --hero-bg: #12100e;
+    --hero-text: #f3eee6;
+    --hero-muted: #b3a998;
+    --hero-accent: #e2a97a;
+    --hero-line: rgba(243, 238, 230, 0.16);
+    --hero-line-strong: rgba(243, 238, 230, 0.32);
+    --hero-chip: rgba(226, 169, 122, 0.1);
+    --hero-glow: rgba(193, 125, 69, 0.28);
     --code-bg: #0d0c0b;
+    --code-text: #e9e3d8;
+    --code-comment: #8a8478;
+    --code-key: #e2a97a;
+    --code-string: #a9c98f;
+    --window-bar: #201e1b;
+    --window-dot: #45413a;
+    --window-title: #8a8478;
+    --shadow: rgba(0, 0, 0, 0.45);
   }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
@@ -97,10 +138,10 @@
   @media (max-width: 640px) { .nav-links a:not(.gh) { display: none; } }
   .theme-toggle {
     display: grid; place-items: center; width: 34px; height: 34px; margin-left: -6px;
-    border: 1px solid rgba(243, 238, 230, 0.16); border-radius: 8px;
+    border: 1px solid var(--hero-line); border-radius: 8px;
     background: transparent; color: var(--hero-muted); cursor: pointer;
   }
-  .theme-toggle:hover { color: var(--hero-text); border-color: rgba(243, 238, 230, 0.32); }
+  .theme-toggle:hover { color: var(--hero-text); border-color: var(--hero-line-strong); }
   .theme-toggle .sun { display: none; }
   .is-dark .theme-toggle .sun { display: block; }
   .is-dark .theme-toggle .moon { display: none; }
@@ -108,8 +149,8 @@
   /* Kopband */
   .hero {
     background:
-      radial-gradient(900px 420px at 85% -10%, rgba(193, 125, 69, 0.28), transparent 70%),
-      radial-gradient(600px 300px at 0% 100%, rgba(193, 125, 69, 0.12), transparent 70%),
+      radial-gradient(900px 420px at 85% -10%, var(--hero-glow), transparent 70%),
+      radial-gradient(600px 300px at 0% 100%, var(--hero-chip), transparent 70%),
       var(--hero-bg);
     color: var(--hero-text);
     padding: 56px 0 160px;
@@ -118,7 +159,7 @@
   .eyebrow {
     display: inline-flex; align-items: center; gap: 8px;
     font-size: 13px; color: var(--hero-accent);
-    border: 1px solid rgba(226, 169, 122, 0.3); background: rgba(226, 169, 122, 0.08);
+    border: 1px solid var(--hero-line); background: var(--hero-chip);
     border-radius: 999px; padding: 4px 12px; width: fit-content;
   }
   .hero h1 { margin: 0; font-size: clamp(34px, 5.5vw, 56px); line-height: 1.08; font-weight: 700; letter-spacing: -0.025em; }
@@ -128,17 +169,17 @@
   .button {
     display: inline-flex; align-items: center; gap: 10px;
     padding: 13px 22px; border-radius: var(--radius);
-    background: #c17d45; color: #1a1714;
+    background: var(--fill-accent); color: var(--on-accent);
     font-weight: 650; font-size: 16px; text-decoration: none;
-    box-shadow: 0 6px 24px rgba(193, 125, 69, 0.35);
+    box-shadow: 0 6px 24px var(--hero-glow);
     transition: background 0.15s, transform 0.15s;
   }
-  .button:hover { background: #d08b52; transform: translateY(-1px); }
+  .button:hover { background: var(--fill-accent-hover); transform: translateY(-1px); }
   .button[aria-disabled="true"] { opacity: 0.6; pointer-events: none; }
   .button-ghost { color: var(--hero-text); text-decoration: none; font-size: 15px; display: inline-flex; align-items: center; gap: 6px; }
   .button-ghost:hover { color: var(--hero-accent); }
   .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: 13px; color: var(--hero-muted); }
-  .version { font-family: var(--font-mono); font-size: 12px; padding: 2px 8px; border-radius: 6px; background: rgba(226, 169, 122, 0.14); color: var(--hero-accent); }
+  .version { font-family: var(--font-mono); font-size: 12px; padding: 2px 8px; border-radius: 6px; background: var(--hero-chip); color: var(--hero-accent); }
   .version[hidden] { display: none; }
   #status:empty { display: none; }
 
@@ -148,11 +189,11 @@
     border-radius: 14px; overflow: hidden;
     background: #0c0c0d;
     border: 1px solid var(--border-strong);
-    box-shadow: 0 30px 80px rgba(20, 14, 8, 0.28), 0 4px 16px rgba(20, 14, 8, 0.12);
+    box-shadow: 0 30px 80px var(--shadow), 0 4px 16px var(--shadow);
   }
-  .window-bar { display: flex; align-items: center; gap: 7px; padding: 10px 14px; background: #201e1b; }
-  .window-bar span { width: 11px; height: 11px; border-radius: 50%; background: #45413a; }
-  .window-bar small { margin-left: 10px; color: #8a8478; font-size: 12px; }
+  .window-bar { display: flex; align-items: center; gap: 7px; padding: 10px 14px; background: var(--window-bar); }
+  .window-bar span { width: 11px; height: 11px; border-radius: 50%; background: var(--window-dot); }
+  .window-bar small { margin-left: 10px; color: var(--window-title); font-size: 12px; }
   .demo { display: block; width: 100%; aspect-ratio: 16 / 9; background: #0c0c0d; }
 
   /* Secties */
@@ -197,9 +238,9 @@
     border-radius: 12px; padding: 20px 22px; overflow-x: auto;
     font: 13.5px/1.7 var(--font-mono); border: 1px solid var(--border);
   }
-  .code .c { color: #8a8478; }
-  .code .k { color: #e2a97a; }
-  .code .s { color: #a9c98f; }
+  .code .c { color: var(--code-comment); }
+  .code .k { color: var(--code-key); }
+  .code .s { color: var(--code-string); }
 
   .notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
   .note { display: flex; gap: 12px; padding: 18px 20px; background: var(--surface-0); border: 1px solid var(--border); border-radius: 12px; font-size: 15px; color: var(--text-secondary); }
@@ -208,8 +249,9 @@
 
   .final {
     margin-top: 88px; padding: 48px 32px; border-radius: 16px; text-align: center;
-    background: radial-gradient(600px 240px at 50% 0%, rgba(193, 125, 69, 0.3), transparent 70%), var(--hero-bg);
+    background: radial-gradient(600px 240px at 50% 0%, var(--hero-glow), transparent 70%), var(--hero-bg);
     color: var(--hero-text);
+    border: 1px solid var(--border);
   }
   .final h2 { margin-bottom: 8px; }
   .final p { margin: 0 0 24px; color: var(--hero-muted); }
